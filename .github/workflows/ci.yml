@@ -1,0 +1,104 @@
+name: CI
+
+# Quality gates from the AWS Deployment Manual §10. All five must pass before a
+# build may be promoted. Runs with NO external API keys: the AI checks self-skip
+# (RUN_AI unset) and market-data checks tolerate an absent NGN key, so CI needs
+# no secrets at all.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_call: {}   # invoked by deploy.yml so a release re-runs every gate
+
+concurrency:
+  # github.workflow is the CALLER's name when this is reached via workflow_call,
+  # so a deploy's gate run never cancels (or is cancelled by) a push/PR CI run
+  # on the same ref.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    name: typecheck · test · build · qa · pentest
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Static gates ──────────────────────────────────────────────────────
+      - name: Typecheck (expect 0 errors)
+        run: npm run typecheck
+
+      - name: Unit tests (expect 127/127)
+        run: npm test
+
+      - name: Production build
+        env:
+          NODE_ENV: production
+          # NEXT_PUBLIC_* are inlined at BUILD time. If you enable Turnstile,
+          # add NEXT_PUBLIC_TURNSTILE_SITE_KEY as a repo variable and pass it here.
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+        run: npm run build
+
+      # ── Dynamic gates: boot the built app against a throwaway PGlite DB ───
+      - name: Generate ephemeral runtime secrets
+        run: |
+          # Per-run throwaway values — never reused, never the production key.
+          ENC="$(openssl rand -hex 32)"
+          SEED="$(openssl rand -base64 24)"
+          echo "::add-mask::$ENC"
+          echo "::add-mask::$SEED"
+          echo "APP_ENCRYPTION_KEY=$ENC" >> "$GITHUB_ENV"
+          echo "BRB_SEED_PASSWORD=$SEED" >> "$GITHUB_ENV"
+
+      - name: Start production server
+        env:
+          NODE_ENV: production
+          PORT: 3000
+          PGLITE_DIR: ${{ runner.temp }}/pg
+        run: |
+          mkdir -p "$PGLITE_DIR"
+          npm start > "${{ runner.temp }}/server.log" 2>&1 &
+          echo "waiting for /api/health ..."
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000/api/health > /dev/null 2>&1; then
+              echo "healthy after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::server did not become healthy in 60s"
+          cat "${{ runner.temp }}/server.log"
+          exit 1
+
+      - name: Functional QA harness (expect 72 passed / 0 failed)
+        env:
+          BASE_URL: http://127.0.0.1:3000
+          ADMIN_EMAIL: admin@brb.local
+          ADMIN_PASSWORD: ${{ env.BRB_SEED_PASSWORD }}
+        run: node scripts/qa.mjs
+
+      - name: DAST pentest (expect 0 vulnerable)
+        env:
+          BASE_URL: http://127.0.0.1:3000
+          ADMIN_EMAIL: admin@brb.local
+          ADMIN_PASSWORD: ${{ env.BRB_SEED_PASSWORD }}
+        run: node scripts/pentest.mjs
+
+      - name: Upload server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-log-${{ github.run_id }}
+          path: ${{ runner.temp }}/server.log
+          if-no-files-found: ignore
+          retention-days: 14

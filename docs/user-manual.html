@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>BRB NGX Analyst — User Manual (Analyst &amp; PFM)</title>
+<style>
+  :root {
+    --forest: #052a22;
+    --forest-soft: #1a4d40;
+    --fresh: #8ac873;
+    --ink: #1f2a26;
+    --muted: #5b6b64;
+    --line: #d9ddd6;
+    --sand: #f6f5f0;
+    --loss: #c0392b;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    font-size: 10.5pt;
+    line-height: 1.5;
+    margin: 0;
+  }
+  h1, h2, h3, h4 { font-family: Georgia, "Times New Roman", serif; color: var(--forest); }
+  h1 { font-size: 26pt; margin: 0 0 4pt; }
+  h2 {
+    font-size: 15pt;
+    margin: 22pt 0 6pt;
+    padding-bottom: 4pt;
+    border-bottom: 2px solid var(--fresh);
+  }
+  h3 { font-size: 12pt; margin: 14pt 0 4pt; color: var(--forest-soft); }
+  h4 { font-size: 10.5pt; margin: 10pt 0 2pt; color: var(--forest-soft); }
+  p { margin: 4pt 0; }
+  ul, ol { margin: 4pt 0 8pt; padding-left: 18pt; }
+  li { margin: 2pt 0; }
+  a { color: var(--forest-soft); }
+  code {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    background: var(--sand);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 9pt;
+  }
+  .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 8pt;
+    font-weight: 700;
+    color: var(--forest-soft);
+  }
+  .cover {
+    padding: 40pt 0 20pt;
+    border-bottom: 3px solid var(--forest);
+    margin-bottom: 10pt;
+  }
+  .cover .brand { display: flex; align-items: center; gap: 8pt; }
+  .cover .mark {
+    width: 30pt; height: 30pt; border-radius: 6pt;
+    background: var(--forest);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--fresh); font-weight: 800; font-family: Georgia, serif; font-size: 13pt;
+  }
+  .cover .sub { color: var(--muted); font-size: 11pt; margin-top: 2pt; }
+  .meta { color: var(--muted); font-size: 9pt; margin-top: 8pt; }
+  table { width: 100%; border-collapse: collapse; margin: 8pt 0; font-size: 9.5pt; }
+  th, td { text-align: left; padding: 5pt 7pt; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--sand); color: var(--forest); text-transform: uppercase; letter-spacing: 0.06em; font-size: 8pt; }
+  .role-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 8pt; font-weight: 700; }
+  .role-analyst { background: #e8e6df; color: #444; }
+  .role-pfm { background: #dcefd3; color: var(--forest); }
+  .role-admin { background: var(--forest); color: #eaf6e4; }
+  .callout {
+    border-left: 4px solid var(--fresh);
+    background: var(--sand);
+    padding: 8pt 12pt;
+    margin: 10pt 0;
+    font-size: 9.5pt;
+  }
+  .callout.warn { border-left-color: #d6a419; }
+  .callout strong { color: var(--forest); }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps > li { counter-increment: step; position: relative; padding-left: 24pt; margin: 6pt 0; }
+  .steps > li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 0;
+    width: 17pt; height: 17pt; border-radius: 50%;
+    background: var(--fresh); color: var(--forest);
+    font-weight: 800; font-size: 9pt;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .toc { columns: 2; column-gap: 24pt; font-size: 9.5pt; }
+  .toc a { text-decoration: none; color: var(--ink); }
+  .pill { font-size: 8pt; color: var(--muted); }
+  footer { margin-top: 18pt; padding-top: 8pt; border-top: 1px solid var(--line); color: var(--muted); font-size: 8pt; }
+  .page-break { break-before: page; }
+  h2, h3 { break-after: avoid; }
+  table, .callout, ul, ol { break-inside: avoid; }
+  @page { margin: 16mm 15mm; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="brand">
+    <span class="mark">B</span>
+    <div>
+      <div class="eyebrow">BRB Capital Group · NGX Analyst Platform</div>
+      <h1>User Manual</h1>
+      <div class="sub">For Analysts &amp; Principal Fund Managers</div>
+    </div>
+  </div>
+  <div class="meta">Internal analytical tool — not investment advice. Document version 1.1 · July 2026</div>
+</div>
+
+<div class="callout">
+  <strong>Who this is for.</strong> This manual covers day-to-day use of the BRB NGX Analyst platform for two roles:
+  the <span class="role-tag role-analyst">Analyst</span> (research, screening, portfolio construction and management,
+  AI-assisted review) and the <span class="role-tag role-pfm">Principal Fund Manager (PFM)</span> (everything an analyst
+  can do, plus reviewing and approving rebalancing proposals). Administrator-only functions (user &amp; API-key management)
+  are summarised at the end. A separate <em>Deployment Guide</em> exists for the engineering team.
+</div>
+
+<h2 id="toc">Contents</h2>
+<div class="toc">
+  1. Getting started &amp; roles<br/>
+  2. Navigating the platform<br/>
+  3. Market Dashboard<br/>
+  4. AI Daily Market Summary<br/>
+  5. Stock Analysis &amp; AI filing extraction<br/>
+  6. Screener<br/>
+  7. Watchlists<br/>
+  8. Bonds &amp; ETFs (Instruments)<br/>
+  9. Building a portfolio<br/>
+  10. Managing a portfolio<br/>
+  11. AI Portfolio Review<br/>
+  12. Rebalancing &amp; PFM approval workflow<br/>
+  13. Forecasting<br/>
+  14. Notifications, exports &amp; theme<br/>
+  15. Analyst quick-start · PFM quick-start<br/>
+  16. Compliance reminders<br/>
+  17. Administrator functions
+</div>
+
+<h2 id="s1">1 · Getting started &amp; roles</h2>
+<p>Open the platform URL provided by your administrator and sign in with your work email and password. If you do
+not have an account, ask an administrator to create one for you.</p>
+<table>
+  <thead><tr><th>Role</th><th>What it can do</th></tr></thead>
+  <tbody>
+    <tr><td><span class="role-tag role-analyst">Analyst</span></td>
+      <td>Research the market, screen equities, build and manage model portfolios, run AI reviews, set alerts, export data. Sees and owns its own portfolios.</td></tr>
+    <tr><td><span class="role-tag role-pfm">PFM</span></td>
+      <td>Everything an analyst can do, <strong>plus</strong> the Approvals queue: review, approve or reject rebalancing proposals submitted by analysts.</td></tr>
+    <tr><td><span class="role-tag role-admin">Admin</span></td>
+      <td>Everything, plus user management, API-key configuration, quota &amp; audit dashboards. Sees all analysts' portfolios.</td></tr>
+  </tbody>
+</table>
+<div class="callout warn"><strong>First login.</strong> Change your password is managed by an administrator. If your firm is still
+using the seeded demo accounts (<code>analyst@brb.local</code>, <code>pm@brb.local</code>, <code>admin@brb.local</code>),
+ask engineering to rotate them before real use.</div>
+
+<h2 id="s2">2 · Navigating the platform</h2>
+<p>The top navigation bar gives you: <strong>Dashboard</strong>, <strong>Stocks</strong>, <strong>Screener</strong>,
+<strong>Portfolios</strong>, <strong>Watchlists</strong>, <strong>Instruments</strong> and <strong>Forecasting</strong>.
+On the right you'll find the notification bell, a light/dark theme toggle, and your user menu (name, role, sign out).
+PFMs also see an approvals icon; admins see a settings gear.</p>
+<p>The platform opens in <strong>dark mode</strong> by default; use the sun/moon toggle to switch. Your choice is remembered.</p>
+
+<h2 id="s3">3 · Market Dashboard</h2>
+<p>The landing page is your NGX daily overview. It has two tabs: <strong>Market Overview</strong> and <strong>AI Daily Summary</strong>.</p>
+<p>Market Overview shows:</p>
+<ul>
+  <li><strong>Market status banner</strong> — open/closed and next session time (Africa/Lagos).</li>
+  <li><strong>All-Share Index hero</strong> — level, day change, YTD, deals, volume, value traded, total market cap, and breadth (advancers / decliners / unchanged).</li>
+  <li><strong>Indices strip</strong> — NGX30, NGX50, sector and thematic indices.</li>
+  <li><strong>Most Active</strong> (by naira value traded) and <strong>FX</strong> (naira exchange rates).</li>
+  <li><strong>Movers</strong>, <strong>YTD performers</strong>, and <strong>Sector performance</strong>.</li>
+</ul>
+<div class="callout"><strong>Derived data.</strong> Where your data plan does not include an aggregate directly (e.g. sector
+performance or YTD leaders), the platform reconstructs it <em>exactly</em> from the underlying constituent list and labels it
+"derived from constituents (equal-weighted)". These are real calculations, not estimates.</div>
+<p>All prices carry an "as of" timestamp and are delayed up to 20 minutes during NGX hours (last close otherwise).</p>
+
+<h2 id="s4">4 · AI Daily Market Summary</h2>
+<p>On the Dashboard, open the <strong>AI Daily Summary</strong> tab and click <em>Generate today's summary</em>. Claude reads
+the day's snapshot, movers, sectors and FX and writes a desk-style briefing (headline, market action, movers &amp; sectors, FX,
+takeaway). One summary is kept per trading day; use <em>Regenerate</em> to refresh it.</p>
+<ul>
+  <li><strong>Include web context (cited)</strong> — tick this to let Claude run up to three web searches for qualitative
+  context (policy, corporate events). Sources are cited; NGX figures always come from the platform's own data, never the web.</li>
+</ul>
+<div class="callout warn"><strong>Compliance.</strong> The summary is descriptive market commentary for internal use — not investment
+advice, a recommendation, or a prediction. Verify figures against the dashboard before relying on them.</div>
+
+<h2 id="s5">5 · Stock Analysis &amp; AI filing extraction</h2>
+<p>Go to <strong>Stocks</strong>, search a ticker or company name, and open its analysis page. Tabs cover the quote and
+chart, fundamentals and headline ratios, peers, dividends, and news.</p>
+<h3>AI statement extraction</h3>
+<p>On the <strong>Fundamentals</strong> tab, the <em>AI statement extraction</em> panel lists the company's official NGX
+"Financial Statements" filings. Click <em>Extract with Claude</em> and the platform downloads the official filing PDF and
+extracts the income statement, balance sheet and cash flow as clean tables, with <strong>page-level citations</strong> back to
+the source document. Each extraction is cached; use <em>Re-extract</em> to refresh.</p>
+<div class="callout"><strong>Always traceable.</strong> Every extracted figure carries a <code>[p.N]</code> marker pointing at the
+page of the filing, and the source PDF is one click away. Verify against the PDF before relying on the numbers.</div>
+
+<h2 id="s6">6 · Screener</h2>
+<p>Under <strong>Screener</strong>, filter the NGX universe by search term, sector and market-cap band, and sort by any
+column (price, day, 1-month, YTD, 52-week). Useful workflows:</p>
+<ul>
+  <li><strong>Save preset</strong> — store a filter/sort combination to reuse later.</li>
+  <li><strong>Select rows → push to portfolio</strong> — tick companies and send them straight into a new portfolio draft.</li>
+  <li><strong>CSV</strong> — export the current result set.</li>
+</ul>
+
+<h2 id="s7">7 · Watchlists</h2>
+<p>Under <strong>Watchlists</strong>, create named lists and add tickers (there is a "watch" control on each stock page).
+A watchlist shows mini price charts and aggregated news for its members — a lightweight way to monitor names you are
+researching before they enter a portfolio.</p>
+<h3>Price alerts (buy / sell levels)</h3>
+<p>Each watchlist has a <strong>Price alerts</strong> panel. Set a <strong>buy level</strong> (notify when the price falls
+to or below it), a <strong>sell level</strong> (notify when it rises to or above it), or both — the sell level must be above
+the buy level. You can also click the bell icon on any instrument row to pre-fill an alert for that ticker.</p>
+<ul>
+  <li>When a level is reached, a notification appears in the <strong>bell</strong> (top bar) linking to the stock.</li>
+  <li>An alert shows <strong>Armed</strong> until it fires, then <strong>Triggered</strong>. Each side fires once; use the
+  re-arm control to arm it again, or delete it.</li>
+  <li>Alerts are evaluated every few minutes during market hours against the latest available (delayed) price.</li>
+</ul>
+
+<h2 id="s8">8 · Bonds &amp; ETFs (Instruments)</h2>
+<p><strong>Instruments</strong> has Bonds and ETFs tabs: searchable, filterable tables with coupon, maturity, issuer (bonds)
+and price/day/YTD (ETFs), each exportable to CSV. Click an ETF to open its detail page with a price chart.</p>
+
+<h2 id="s9" class="page-break">9 · Building a portfolio</h2>
+<p>Go to <strong>Portfolios → New portfolio</strong> (or arrive here from the screener's "push to portfolio"). In the
+builder you:</p>
+<ol class="steps">
+  <li>Name the portfolio, set a benchmark (e.g. ASI) and base currency, and add mandate notes (these guide the AI review).</li>
+  <li>Add holdings by ticker. Choose <strong>weight mode</strong> (target %) or <strong>units mode</strong> (share counts), and set an entry price.</li>
+  <li>Watch the live validation (weights summing to 100%, warnings on concentration) and save.</li>
+</ol>
+<p>On save, the platform computes portfolio analytics (weighted ratios, sector allocation) so the model is ready to manage.</p>
+<p>The <strong>Portfolios</strong> page has three tabs: <strong>Model Portfolios</strong> (your saved books),
+<strong>AI Builder</strong>, and <strong>Paper Trading</strong>.</p>
+
+<h3>AI Portfolio Builder</h3>
+<p>The <strong>AI Builder</strong> tab constructs a candidate NGX portfolio from a capital amount and a trading horizon.</p>
+<ol class="steps">
+  <li>Enter an <strong>amount</strong> in ₦ or $ and pick a <strong>horizon</strong> — Intraday, Weekly, Monthly or Yearly.</li>
+  <li>Click <em>Build</em>. Acting as a liquidity-first CIO/Head Trader, Claude proposes positions with defined entry, target
+  and stop levels, expected return and rationale, plus desk warnings.</li>
+  <li>Every price, unit count and fundamental comes from the platform's live NGN Market data — never invented. Share maths and
+  entry prices are reconciled server-side against the live quote.</li>
+</ol>
+<p>Save any pick (or all picks) as a <strong>paper trade</strong> to track it.</p>
+
+<h3>Paper trading</h3>
+<p>The <strong>Paper Trading</strong> tab is a simulation — no orders are placed. It shows <strong>open positions</strong> with
+live unrealised P&amp;L and <strong>closed positions</strong> with realised results, plus summary tiles (invested, unrealised,
+realised).</p>
+<ul>
+  <li><strong>Close</strong> a position when you would sell — it moves to closed and books realised P&amp;L at the live price.</li>
+  <li><strong>Convert to portfolio</strong> — snapshot your open positions into a new units-based model portfolio (same-ticker
+  trades are merged at a share-weighted average entry). Your paper trades stay open.</li>
+  <li><strong>Clear closed positions</strong> — delete a single closed row (trash icon) or use <strong>Clear all</strong> to
+  wipe the closed history (confirmation required). Open positions cannot be deleted — close them first.</li>
+</ul>
+<div class="callout warn"><strong>Simulation only.</strong> Paper trades place no orders and are for internal analysis. Prices are
+delayed; past performance does not indicate future results; not investment advice.</div>
+
+<h2 id="s10">10 · Managing a portfolio</h2>
+<p>Open a portfolio and click through to its management view. The masthead shows market value, day change, unrealised and
+realised P&amp;L, dividends and benchmark, with an NGN/USD toggle. Tabs:</p>
+<table>
+  <thead><tr><th>Tab</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td>Holdings</td><td>Live positions: units, average cost, current price, market value, day move, unrealised P&amp;L, and weight vs target (drift).</td></tr>
+    <tr><td>Transactions</td><td>The ledger. Record buys, sells and dividends (holiday-aware date picker). Positions and cost basis are computed from this ledger.</td></tr>
+    <tr><td>Rebalancing</td><td>Compares current weights to targets and proposes trades to close the gap. Submit for PFM approval from here.</td></tr>
+    <tr><td>Performance</td><td>Time-weighted return proxy vs benchmark, and contribution by holding.</td></tr>
+    <tr><td>Risk</td><td>Beta, alpha, volatility, tracking error, information ratio, Sharpe/Sortino (editable risk-free), historical VaR/CVaR, max drawdown, and a correlation matrix.</td></tr>
+    <tr><td>AI Review</td><td>Claude-powered optimisation ideas (see next section).</td></tr>
+    <tr><td>Alerts</td><td>Price and ex-dividend alerts for the portfolio's names.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="s11">11 · AI Portfolio Review</h2>
+<p>The <strong>AI Review</strong> tab is the platform's flagship analytical assistant. It reads your live holdings plus the
+current NGX opportunity set and proposes concrete optimisation ideas.</p>
+<ol class="steps">
+  <li>Enter the <strong>cash available to trade (₦)</strong> — your dry powder to deploy.</li>
+  <li>Click <em>Generate review</em>. Claude analyses concentration, sector tilt, momentum and P&amp;L against your mandate.</li>
+  <li>Read the output: <strong>Portfolio Diagnosis</strong>, <strong>Ideas to Trim or Exit</strong>, <strong>Ideas to Add</strong>
+  (names from the live opportunity set, sized in ₦), an <strong>Illustrative Reallocation Plan</strong> that reconciles cash +
+  trim proceeds against the adds, <strong>Risks</strong>, and a <strong>Compliance note</strong>.</li>
+</ol>
+<div class="callout"><strong>How it stays honest.</strong> The review uses only the figures the platform provides — it never invents
+prices or fundamentals. Sizing is explicit arithmetic (units × price). It flags single names above ~15% of the book and sizes new
+adds prudently.</div>
+<div class="callout warn"><strong>These are ideas, not orders.</strong> The AI review is internal decision-support for your judgement.
+Validate every figure, then route any resulting trades through the Rebalancing tab for PFM/IC approval. Not investment advice.</div>
+
+<h2 id="s12">12 · Rebalancing &amp; the PFM approval workflow</h2>
+<p>The platform enforces a two-person control on rebalancing:</p>
+<h4>Analyst</h4>
+<ol class="steps">
+  <li>On the <strong>Rebalancing</strong> tab, review the proposed trades to move current weights toward target.</li>
+  <li>Click <strong>Submit for PFM approval</strong>. The proposal enters the approvals queue and is recorded in the audit trail.</li>
+</ol>
+<h4><span class="role-tag role-pfm">PFM</span></h4>
+<ol class="steps">
+  <li>Open the <strong>Approvals</strong> queue (clipboard icon in the top bar, or the Approvals page).</li>
+  <li>Review each pending proposal's trades and rationale.</li>
+  <li><strong>Approve</strong> or <strong>Reject</strong>. The decision is logged and the analyst is notified.</li>
+</ol>
+<div class="callout"><strong>Separation of duties.</strong> An analyst cannot approve their own proposal; only PFMs and admins can
+act on the queue. Every submission and decision is written to the audit trail.</div>
+
+<h2 id="s13">13 · Forecasting</h2>
+<p>From a stock page click <strong>Forecast</strong> (or open <strong>Forecasting</strong> and pick a ticker). The tabs are:</p>
+<ul>
+  <li><strong>AI Price Forecast</strong> — a Monte-Carlo ensemble (2,000 simulated paths from fitted drift &amp; volatility)
+  drawn as a <em>probability fan</em>: the historical line, a dashed median (P50) path, and shaded P25–P75 and P10–P90 bands
+  past a "Today" divider. Switch the horizon (3M / 6M / 12M); hover for the full P10→P90 percentile ladder. Bear/base/bull
+  scenario cards and model diagnostics (drift, volatility, trend fit R², walk-forward error) sit alongside.</li>
+  <li><strong>Buy/Sell Signal</strong> — a structured verdict (buy / hold / sell) with conviction, bull and bear cases, and
+  a bottom line.</li>
+  <li><strong>Fundamental Scenario</strong> — an implied price from EPS × exit-P/E assumptions with a sensitivity grid.</li>
+  <li><strong>Dividend Forecast</strong> — a Claude-written outlook plus a projected dividend-per-share path.</li>
+  <li><strong>Macro Context</strong> — the naira/USD trajectory, the NGX All-Share regime, and an <strong>AI sector momentum</strong>
+  panel reading where the stock's sector sits in the rotation.</li>
+</ul>
+<div class="callout warn"><strong>Illustrative only.</strong> Forecasts are illustrative scenarios — not predictions, recommendations
+or guarantees — and are labelled as such throughout. Higher backtest error / lower R² means wider real-world uncertainty than the
+bands imply.</div>
+
+<h2 id="s14">14 · Notifications, exports &amp; theme</h2>
+<ul>
+  <li><strong>Notifications</strong> — the bell shows triggered alerts: portfolio price / percent-move / ex-dividend alerts,
+  and watchlist buy/sell price-level alerts. Use "check now" to evaluate immediately, and "mark all read". Each alert fires
+  once (re-arm or recreate it to fire again).</li>
+  <li><strong>Exports</strong> — most tables offer CSV; analysis pages offer PNG chart export and a print-ready PDF one-pager (browser print).</li>
+  <li><strong>Theme</strong> — dark by default; toggle to light with the sun/moon icon.</li>
+</ul>
+
+<h2 id="s15" class="page-break">15 · Quick-start workflows</h2>
+<h3><span class="role-tag role-analyst">Analyst</span> — daily research to proposal</h3>
+<ol class="steps">
+  <li>Open the <strong>Dashboard</strong>; skim the AI Daily Summary for the market tone.</li>
+  <li>Use the <strong>Screener</strong> to shortlist names; save a preset; push interesting ones to a portfolio draft or a watchlist.</li>
+  <li>Deep-dive candidates on <strong>Stocks</strong>; extract the latest filings on the Fundamentals tab.</li>
+  <li>In <strong>Portfolios</strong>, open your book and run an <strong>AI Review</strong> with your available cash.</li>
+  <li>Take the accepted ideas to the <strong>Rebalancing</strong> tab and <strong>Submit for PFM approval</strong>.</li>
+</ol>
+<h3><span class="role-tag role-pfm">PFM</span> — oversight &amp; approval</h3>
+<ol class="steps">
+  <li>Check the <strong>Approvals</strong> queue for pending proposals.</li>
+  <li>Open each portfolio's <strong>Risk</strong> and <strong>Performance</strong> tabs to sanity-check the book.</li>
+  <li>Review the proposed trades and rationale; <strong>Approve</strong> or <strong>Reject</strong>.</li>
+  <li>Use the <strong>AI Review</strong> yourself to pressure-test an analyst's thesis before deciding.</li>
+</ol>
+
+<h2 id="s16">16 · Compliance reminders</h2>
+<ul>
+  <li>The platform is an <strong>internal analytical tool</strong> — nothing it produces is investment advice or a client recommendation.</li>
+  <li>AI outputs (summaries, filing extractions, portfolio reviews) are <strong>decision-support</strong> for a professional's judgement. Verify figures against source data.</li>
+  <li>Forecasts are <strong>illustrative scenarios</strong>, never guarantees. No output implies guaranteed returns.</li>
+  <li>Prices are delayed up to 20 minutes during NGX hours. Past performance does not indicate future results.</li>
+  <li>Rebalancing output requires PFM/IC approval and is never an order.</li>
+</ul>
+
+<h2 id="s17">17 · Administrator functions (reference)</h2>
+<p>Admins have a <strong>settings gear</strong> in the top bar opening the Admin page:</p>
+<ul>
+  <li><strong>Users &amp; roles</strong> — create staff accounts (Analyst, PFM, Admin), change roles, reset passwords, remove users. The last administrator cannot be removed or demoted.</li>
+  <li><strong>API keys</strong> — configure the NGN Market and Claude API keys in-app; they are encrypted at rest and take effect immediately.</li>
+  <li><strong>Quota &amp; audit</strong> — API usage against the monthly pool, recent requests, and the full audit trail of analyst actions.</li>
+</ul>
+
+<footer>
+  BRB Capital Group — NGX Analyst Platform · Internal analytical tool, not investment advice · User Manual v1.1 · July 2026
+</footer>
+
+</body>
+</html>

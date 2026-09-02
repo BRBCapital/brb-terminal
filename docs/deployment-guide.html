@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>BRB NGX Analyst — Production Deployment Guide (Engineering)</title>
+<style>
+  :root {
+    --forest: #052a22; --forest-soft: #1a4d40; --fresh: #8ac873;
+    --ink: #1f2a26; --muted: #5b6b64; --line: #d9ddd6; --sand: #f6f5f0;
+    --loss: #c0392b; --amber: #b8860b; --code-bg: #10241c;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; color: var(--ink); font-size: 10pt; line-height: 1.5; margin: 0; }
+  h1,h2,h3,h4 { font-family: Georgia,"Times New Roman",serif; color: var(--forest); }
+  h1 { font-size: 25pt; margin: 0 0 4pt; }
+  h2 { font-size: 14.5pt; margin: 20pt 0 6pt; padding-bottom: 4pt; border-bottom: 2px solid var(--fresh); }
+  h3 { font-size: 11.5pt; margin: 13pt 0 4pt; color: var(--forest-soft); }
+  h4 { font-size: 10pt; margin: 9pt 0 2pt; color: var(--forest-soft); }
+  p { margin: 4pt 0; }
+  ul, ol { margin: 4pt 0 8pt; padding-left: 18pt; }
+  li { margin: 2pt 0; }
+  a { color: var(--forest-soft); }
+  code { font-family: "SF Mono",Menlo,Consolas,monospace; background: var(--sand); padding: 1px 4px; border-radius: 3px; font-size: 8.5pt; }
+  pre { background: var(--code-bg); color: #d7ecd0; padding: 10pt 12pt; border-radius: 6pt; font-family: "SF Mono",Menlo,Consolas,monospace; font-size: 8.3pt; line-height: 1.45; overflow-x: auto; white-space: pre-wrap; }
+  pre .c { color: #7fb98a; }
+  .eyebrow { text-transform: uppercase; letter-spacing: 0.18em; font-size: 8pt; font-weight: 700; color: var(--forest-soft); }
+  .cover { padding: 40pt 0 18pt; border-bottom: 3px solid var(--forest); margin-bottom: 10pt; }
+  .cover .brand { display: flex; align-items: center; gap: 8pt; }
+  .cover .mark { width: 30pt; height: 30pt; border-radius: 6pt; background: var(--forest); display: inline-flex; align-items: center; justify-content: center; color: var(--fresh); font-weight: 800; font-family: Georgia,serif; font-size: 13pt; }
+  .cover .sub { color: var(--muted); font-size: 11pt; margin-top: 2pt; }
+  .meta { color: var(--muted); font-size: 9pt; margin-top: 8pt; }
+  table { width: 100%; border-collapse: collapse; margin: 8pt 0; font-size: 9pt; }
+  th, td { text-align: left; padding: 5pt 7pt; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--sand); color: var(--forest); text-transform: uppercase; letter-spacing: 0.05em; font-size: 7.5pt; }
+  td code { font-size: 8pt; }
+  .req { color: var(--loss); font-weight: 700; }
+  .opt { color: var(--muted); }
+  .callout { border-left: 4px solid var(--fresh); background: var(--sand); padding: 8pt 12pt; margin: 10pt 0; font-size: 9pt; }
+  .callout.warn { border-left-color: var(--amber); background: #fbf6e9; }
+  .callout.crit { border-left-color: var(--loss); background: #fbecea; }
+  .callout strong { color: var(--forest); }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps > li { counter-increment: step; position: relative; padding-left: 24pt; margin: 6pt 0; }
+  .steps > li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 17pt; height: 17pt; border-radius: 50%; background: var(--fresh); color: var(--forest); font-weight: 800; font-size: 9pt; display: flex; align-items: center; justify-content: center; }
+  .chk { list-style: none; padding-left: 0; }
+  .chk li { padding-left: 18pt; position: relative; }
+  .chk li::before { content: "\2713"; position: absolute; left: 0; color: var(--forest-soft); font-weight: 700; }
+  footer { margin-top: 18pt; padding-top: 8pt; border-top: 1px solid var(--line); color: var(--muted); font-size: 8pt; }
+  .page-break { break-before: page; }
+  h2, h3 { break-after: avoid; }
+  table, .callout, pre { break-inside: avoid; }
+  @page { margin: 15mm 14mm; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="brand">
+    <span class="mark">B</span>
+    <div>
+      <div class="eyebrow">BRB Capital Group · NGX Analyst Platform</div>
+      <h1>Production Deployment Guide</h1>
+      <div class="sub">For the Engineering Department</div>
+    </div>
+  </div>
+  <div class="meta">Confidential — internal engineering document · Version 1.1 · July 2026</div>
+</div>
+
+<div class="callout crit">
+  <strong>Read first — the single most important constraint.</strong> This application embeds its database
+  (<strong>PGlite</strong>, Postgres compiled to WASM) with on-disk persistence in a local directory. It is therefore a
+  <strong>single-instance</strong> application that requires a <strong>persistent writable volume</strong> and a
+  <strong>long-running Node server</strong>. It is <strong>not</strong> compatible with serverless platforms (Vercel/Lambda),
+  read-only filesystems, or horizontal auto-scaling as-is. To scale out, migrate the data layer to a managed Postgres
+  (see §11). Plan the target platform around this before provisioning.
+</div>
+
+<h2>1 · Architecture at a glance</h2>
+<ul>
+  <li><strong>Framework:</strong> Next.js 14 (App Router) + React 18 + TypeScript, run as a long-lived Node server (<code>next start</code>).</li>
+  <li><strong>Data:</strong> PGlite embedded Postgres persisted to a directory (default <code>.data/pg</code>, override with <code>PGLITE_DIR</code>). Repositories speak plain parameterised SQL.</li>
+  <li><strong>Market data:</strong> all NGN Market API calls are proxied <em>server-side</em> through the app (the API key never reaches the browser), with an in-memory TTL cache in front of the upstream to conserve quota.</li>
+  <li><strong>AI features:</strong> Claude API (Anthropic SDK) powers the daily summary, filing extraction and portfolio review. Keys resolve DB-first (in-app, encrypted) then environment.</li>
+  <li><strong>Background worker:</strong> an in-process alert evaluator is started via Next's <code>instrumentationHook</code> and runs only in the Node runtime — another reason a persistent server (not serverless) is required.</li>
+  <li><strong>Auth:</strong> email/password (scrypt), httpOnly cookie sessions, RBAC (analyst &lt; pm &lt; admin), edge middleware page-gate.</li>
+</ul>
+
+<h2>2 · Prerequisites</h2>
+<table>
+  <thead><tr><th>Requirement</th><th>Detail</th></tr></thead>
+  <tbody>
+    <tr><td>Node.js</td><td><strong>v20 LTS</strong> or newer (the app is built and run on Node 20). Include <code>npm</code>.</td></tr>
+    <tr><td>Host</td><td>A Linux VM/container host (e.g. Ubuntu 22.04 LTS) with a persistent disk. ~1 vCPU / 1&ndash;2 GB RAM is sufficient for a single-firm workload; size up for build headroom.</td></tr>
+    <tr><td>Reverse proxy</td><td>nginx (or Caddy/Traefik) terminating <strong>TLS</strong> — required, because session cookies are <code>secure</code> in production.</td></tr>
+    <tr><td>Outbound network</td><td>HTTPS egress to <code>api.ngnmarket.com</code>, <code>doclib.ngxgroup.com</code> (filing PDFs) and the Anthropic API endpoint.</td></tr>
+    <tr><td>NGN Market API key</td><td>A live key (<code>ngm_…</code>). The server's egress IP may need to be allow-listed in the NGN Market dashboard.</td></tr>
+  </tbody>
+</table>
+
+<h2>3 · Environment variables</h2>
+<p>Provide these to the Node process (via your process manager, container env, or a root-owned <code>.env.local</code> that is
+<strong>never</strong> committed). <span class="req">Required</span> values must be set before first boot.</p>
+<table>
+  <thead><tr><th>Variable</th><th>Req?</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>NODE_ENV</code></td><td class="req">Yes</td><td>Set to <code>production</code>. Enables secure cookies and the encryption-key safety check.</td></tr>
+    <tr><td><code>APP_ENCRYPTION_KEY</code></td><td class="req">Yes</td><td>Strong random secret (32+ chars) used to derive the AES-256-GCM key that encrypts stored API keys. <strong>In production the app refuses to start encrypting without it.</strong> Must be <em>stable</em> — rotating it makes previously saved keys unreadable (they must be re-entered).</td></tr>
+    <tr><td><code>BRB_SEED_PASSWORD</code></td><td class="req">Yes</td><td>Password assigned to the three seeded staff accounts on first boot. Set a strong value; rotate the accounts after go-live (§6).</td></tr>
+    <tr><td><code>NGNMARKET_API_KEY</code></td><td class="opt">Optional*</td><td>NGN Market API key. *Optional here because it can be entered (encrypted) in-app under Admin → Settings; set it in env for unattended first boot.</td></tr>
+    <tr><td><code>ANTHROPIC_API_KEY</code></td><td class="opt">Optional</td><td>Claude API key for AI features. Can instead be entered in-app (encrypted). AI features degrade gracefully to a "not configured" notice when absent.</td></tr>
+    <tr><td><code>PGLITE_DIR</code></td><td class="opt">Recommended</td><td>Absolute path to the database directory on the persistent volume, e.g. <code>/var/lib/brb/pg</code>. Defaults to <code>.data/pg</code> under the app dir.</td></tr>
+    <tr><td><code>NGNMARKET_BASE_URL</code></td><td class="opt">Optional</td><td>Override the upstream base URL (defaults to the production v1 endpoint).</td></tr>
+    <tr><td><code>PORT</code></td><td class="opt">Optional</td><td>Server port (default 3000). Bind the reverse proxy to it.</td></tr>
+  </tbody>
+</table>
+<div class="callout warn"><strong>Secrets handling.</strong> Store <code>APP_ENCRYPTION_KEY</code>, <code>BRB_SEED_PASSWORD</code> and any API
+keys in your secrets manager (or a <code>chmod 600</code>, root-owned env file) — never in the repo, image layers, or logs.</div>
+
+<h2 class="page-break">4 · Build &amp; run</h2>
+<pre><span class="c"># 1. Fetch code and install exact dependencies</span>
+git clone &lt;repo-url&gt; brb-analyst &amp;&amp; cd brb-analyst
+npm ci
+
+<span class="c"># 2. Quality gates (run in CI before promoting a build)</span>
+npm run typecheck
+npm test
+npm run lint
+
+<span class="c"># 3. Production build</span>
+npm run build
+
+<span class="c"># 4. Start the long-running server (bind to $PORT, default 3000)</span>
+NODE_ENV=production PORT=3000 npm run start</pre>
+<p>Run step 4 under a supervisor so it restarts on crash/reboot. Example <strong>systemd</strong> unit:</p>
+<pre>[Unit]
+Description=BRB NGX Analyst
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/brb-analyst
+EnvironmentFile=/etc/brb/brb.env      <span class="c"># holds the vars from §3 (chmod 600)</span>
+ExecStart=/usr/bin/node node_modules/.bin/next start -p 3000
+Restart=always
+RestartSec=5
+User=brb
+Group=brb
+
+[Install]
+WantedBy=multi-user.target</pre>
+<p>(PM2 is an equally valid supervisor: <code>pm2 start "npm run start" --name brb-analyst</code>.)</p>
+<div class="callout"><strong>Branding (optional).</strong> The header/login logo is served from <code>public/brb-logo.png</code> when present
+(the file ships with the repo). If absent, the app falls back to a built-in vector lockup — deployment is unaffected either way.</div>
+
+<h2>5 · Reverse proxy &amp; TLS</h2>
+<p>Terminate TLS at nginx and proxy to the Node server. TLS is <strong>mandatory</strong> — the session cookie is issued with
+the <code>Secure</code> flag in production and will not persist over plain HTTP.</p>
+<pre>server {
+  listen 443 ssl http2;
+  server_name analyst.brbcapital.example;
+
+  ssl_certificate     /etc/letsencrypt/live/analyst.brbcapital.example/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/analyst.brbcapital.example/privkey.pem;
+
+  <span class="c"># Filing extraction reads multi-MB PDFs; allow a generous body + timeout.</span>
+  client_max_body_size 25m;
+  proxy_read_timeout   300s;
+
+  location / {
+    proxy_pass         http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+  }
+}
+server { listen 80; server_name analyst.brbcapital.example; return 301 https://$host$request_uri; }</pre>
+<p>Obtain certificates with certbot (<code>certbot --nginx</code>) and enable auto-renewal.</p>
+
+<h2>6 · First boot &amp; account hardening</h2>
+<p>On first start the app creates its schema and seeds three staff accounts using <code>BRB_SEED_PASSWORD</code>:</p>
+<table>
+  <thead><tr><th>Email</th><th>Role</th></tr></thead>
+  <tbody>
+    <tr><td><code>analyst@brb.local</code></td><td>analyst</td></tr>
+    <tr><td><code>pm@brb.local</code></td><td>pm (Principal Fund Manager)</td></tr>
+    <tr><td><code>admin@brb.local</code></td><td>admin</td></tr>
+  </tbody>
+</table>
+<ol class="steps">
+  <li>Sign in as <code>admin@brb.local</code>. Go to <strong>Admin → Settings</strong>.</li>
+  <li>Under <strong>Users &amp; roles</strong>, create real staff accounts (Admin, PFM, Analyst) with strong passwords.</li>
+  <li>Delete or reset the seeded <code>@brb.local</code> demo accounts. (The platform prevents removing the last admin, so create your real admin first.)</li>
+  <li>Under <strong>API keys</strong>, enter the NGN Market and Claude keys if not supplied via env — they are encrypted at rest and take effect immediately.</li>
+</ol>
+<div class="callout"><strong>Locked-out recovery.</strong> If no admin can sign in (e.g. the seed password is unknown), <strong>stop the
+service</strong> (the embedded DB is single-writer) and run the bundled script to set/create an admin without the UI:
+<pre>RESET_EMAIL=admin@yourfirm.com RESET_PASSWORD='&lt;strong-pw&gt;' RESET_ROLE=admin RESET_NAME='Admin' \
+  npm run reset-admin</pre>
+It hashes the password with the app's own scrypt routine and writes directly to <code>PGLITE_DIR</code>. Restart the service
+afterwards. Never commit or log the password.</div>
+
+<h2>7 · Data persistence &amp; backup</h2>
+<ul>
+  <li>All application state (users, portfolios, ledgers, AI outputs, encrypted settings) lives in the PGlite directory
+  (<code>PGLITE_DIR</code>). <strong>This directory is the entire database — back it up.</strong></li>
+  <li>Mount it on a persistent, snapshotted volume separate from the app code. In containers, use a named volume, not the image layer.</li>
+  <li>Back up by snapshotting the volume or copying the directory <strong>while the service is stopped</strong> (or during a
+  quiet window) to guarantee a consistent copy. Restore by replacing the directory and restarting.</li>
+  <li>Keep a secure record of <code>APP_ENCRYPTION_KEY</code>: a restored data directory is undecryptable for its stored secrets without the same key.</li>
+</ul>
+
+<h2>8 · Security checklist</h2>
+<ul class="chk">
+  <li><code>NODE_ENV=production</code> and TLS enforced end-to-end (secure cookies depend on it).</li>
+  <li><code>APP_ENCRYPTION_KEY</code> set to a strong, stable secret from the secrets manager (the app refuses weak fallbacks in production).</li>
+  <li>Seeded demo accounts rotated/removed; <code>BRB_SEED_PASSWORD</code> is strong and not reused.</li>
+  <li>Server egress IP allow-listed with NGN Market; firewall restricts inbound to 443 (and 22 from admin ranges only).</li>
+  <li>Secrets never in the repo, image, or logs; env file is root-owned <code>chmod 600</code>.</li>
+  <li>Data volume access restricted to the service user; backups encrypted at rest.</li>
+</ul>
+<div class="callout warn"><strong>Known posture notes (from internal QA).</strong>
+  (a) Auth is a same-site (<code>SameSite=Lax</code>) cookie with no separate CSRF token — acceptable with Lax + no
+  cross-site mutating GETs, but keep cookies <code>Lax</code>/<code>Strict</code> and add an anti-CSRF token if you ever
+  introduce embedded/cross-origin usage. (b) The edge middleware performs a cookie-<em>presence</em> page gate; real
+  authorization is enforced in every API route and in server components via <code>getSession</code>/role checks — preserve
+  that pattern for any new data-reading <code>page.tsx</code>. The middleware matcher <strong>excludes <code>/api</code></strong>,
+  so <strong>every</strong> route must self-guard — including the catch-all NGN Market proxy at <code>/api/ngx/[...path]</code>,
+  which requires a signed-in user and restricts <code>account/*</code> (billing/usage) to admins. (c) Password resets revoke
+  existing sessions; the "last admin" cannot be demoted/deleted.
+</div>
+
+<h2>9 · Observability</h2>
+<ul>
+  <li><strong>Logs:</strong> the Node process logs to stdout/stderr — capture via <code>journalctl -u brb-analyst</code> (systemd) or <code>pm2 logs</code>, and ship to your log stack.</li>
+  <li><strong>Health check:</strong> point your load balancer/uptime monitor at <code>GET /api/health</code> — 200 <code>{ok:true}</code> when the DB answers, 503 otherwise (so a booting/wedged instance is pulled from rotation). Unauthenticated paths are limited to <code>/api/health</code>, <code>/login</code>, <code>/brb-logo.png</code> and static assets; the app root and all data APIs return a redirect/401. Watch for restart loops.</li>
+  <li><strong>API quota:</strong> Admin → Quota &amp; Audit surfaces NGN Market usage against the monthly pool and recent request latencies; the in-app audit trail records analyst actions.</li>
+  <li><strong>Alerts worker:</strong> confirm on boot that the instrumentation worker started (logged once) — it drives price/ex-dividend notifications.</li>
+</ul>
+
+<h2>10 · Upgrades &amp; rollback</h2>
+<ol class="steps">
+  <li>Build and test the new release in CI (<code>typecheck</code>, <code>test</code>, <code>build</code>) before promoting.</li>
+  <li>Snapshot the data volume.</li>
+  <li>Deploy: pull code, <code>npm ci &amp;&amp; npm run build</code>, then restart the service. Schema changes are additive and idempotent (<code>CREATE TABLE / ALTER TABLE … ADD COLUMN IF NOT EXISTS</code>) and apply automatically on boot — no manual migration step.</li>
+  <li>Smoke-test login, dashboard, and one portfolio. To roll back, restore the previous build and (if needed) the volume snapshot.</li>
+</ol>
+
+<h2 class="page-break">11 · Containerisation (optional) &amp; scaling</h2>
+<h3>Docker</h3>
+<p>A container is fine <em>provided</em> the data directory is a mounted volume and only one instance writes to it. Add
+<code>output: "standalone"</code> to <code>next.config.mjs</code> for a slim runtime image, then:</p>
+<pre><span class="c"># Dockerfile (multi-stage sketch)</span>
+FROM node:20-slim AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:20-slim AS run
+WORKDIR /app
+ENV NODE_ENV=production PGLITE_DIR=/data/pg
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
+COPY --from=build /app/public ./public
+VOLUME ["/data"]              <span class="c"># persistent DB volume — never bake into the image</span>
+EXPOSE 3000
+CMD ["node", "server.js"]</pre>
+<p>Run a <strong>single</strong> replica with the volume attached. Do not scale this image horizontally.</p>
+<h3>Scaling beyond one instance</h3>
+<p>When one node is no longer enough, migrate off the embedded DB: stand up a managed Postgres, repoint the repository
+layer's <code>query()</code> (in <code>src/lib/db/client.ts</code>) at a <code>pg</code>/<code>postgres</code> connection pool —
+the SQL is standard and backend-agnostic — and export/import the existing data. The app can then run as multiple stateless
+replicas behind the load balancer, and the alert worker should be moved to a single dedicated worker instance to avoid
+duplicate evaluation.</p>
+
+<h2>12 · Troubleshooting</h2>
+<table>
+  <thead><tr><th>Symptom</th><th>Likely cause &amp; fix</th></tr></thead>
+  <tbody>
+    <tr><td>Server exits on boot with an APP_ENCRYPTION_KEY error</td><td>Working as designed — set a strong <code>APP_ENCRYPTION_KEY</code> in production.</td></tr>
+    <tr><td>Login succeeds then immediately logs out</td><td>TLS not terminated / <code>X-Forwarded-Proto</code> not set → secure cookie dropped. Fix the proxy headers and serve over HTTPS.</td></tr>
+    <tr><td>Dashboard tiles show "API key not configured"</td><td>Set <code>NGNMARKET_API_KEY</code> (env) or enter it in Admin → Settings; confirm egress IP is allow-listed.</td></tr>
+    <tr><td>AI features show "not configured"</td><td>No Claude key resolvable — add it in Admin → Settings or set <code>ANTHROPIC_API_KEY</code>.</td></tr>
+    <tr><td>Data lost after redeploy</td><td>DB directory was not on a persistent volume — mount <code>PGLITE_DIR</code> on durable storage.</td></tr>
+    <tr><td>Filing extraction times out</td><td>Raise <code>proxy_read_timeout</code> and <code>client_max_body_size</code> at the proxy (see §5).</td></tr>
+    <tr><td>AI features (or an in-app key) silently stop; logs show <code>[settings] could not decrypt "…"; treating as unset</code></td><td>The in-app key was encrypted under a different master key — i.e. <code>APP_ENCRYPTION_KEY</code> (or, in dev, <code>BRB_SEED_PASSWORD</code>) changed since it was saved. Restore the original <code>APP_ENCRYPTION_KEY</code>, or re-enter the key in Admin → Settings (re-encrypts under the current one). Quickest unblock: set the plain env var (<code>ANTHROPIC_API_KEY</code> / <code>NGNMARKET_API_KEY</code>) — env keys aren't encrypted and are used as the fallback. Keep <code>APP_ENCRYPTION_KEY</code> stable thereafter.</td></tr>
+    <tr><td>No admin can sign in / seed password unknown</td><td>Stop the service and run <code>npm run reset-admin</code> (see §6) to set or create an admin, then restart.</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  BRB Capital Group — NGX Analyst Platform · Confidential engineering document · Deployment Guide v1.1 · July 2026
+</footer>
+
+</body>
+</html>

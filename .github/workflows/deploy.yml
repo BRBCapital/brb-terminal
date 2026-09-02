@@ -1,0 +1,162 @@
+name: Deploy to AWS
+
+# Promotes a commit to the single production EC2 instance.
+#
+# Flow:  CI gates → manual approval (GitHub Environment) → S3 artifact →
+#        pre-deploy EBS snapshot → SSM Run Command → health-verified swap.
+#
+# No SSH and no long-lived AWS keys: GitHub authenticates to AWS via OIDC and
+# the instance is driven through SSM. The instance needs no GitHub credentials —
+# it pulls the vetted source tarball from S3 using its own instance role.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY to confirm a production release'
+        required: true
+        default: ''
+  push:
+    tags: ['v*']
+
+# One deploy at a time — the target is a single instance with a single-writer DB.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write   # required for AWS OIDC
+
+jobs:
+  # Never deploy anything that has not just passed every gate.
+  gates:
+    if: github.event_name == 'push' || github.event.inputs.confirm == 'DEPLOY'
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: gates
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    # Attach required reviewers to this Environment for a human approval step.
+    environment:
+      name: production
+      url: ${{ vars.PUBLIC_APP_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-brb-deploy-${{ github.run_id }}
+
+      - name: Package release artifact
+        id: pkg
+        run: |
+          SHA="${GITHUB_SHA::12}"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          # Ship source only. Deps and .next are built on the instance; secrets
+          # and any local DB are excluded by construction.
+          tar --exclude-vcs \
+              --exclude='./node_modules' \
+              --exclude='./.next' \
+              --exclude='./.data' \
+              --exclude='./.env' \
+              --exclude='./.env.local' \
+              --exclude='./.env.*.local' \
+              --exclude='./tsconfig.tsbuildinfo' \
+              -czf "/tmp/$SHA.tar.gz" -C . .
+          ls -lh "/tmp/$SHA.tar.gz"
+
+      - name: Upload artifact + deploy script to S3
+        id: upload
+        run: |
+          SHA='${{ steps.pkg.outputs.sha }}'
+          BUCKET='${{ vars.DEPLOY_BUCKET }}'
+          aws s3 cp "/tmp/$SHA.tar.gz" "s3://$BUCKET/releases/$SHA.tar.gz" --only-show-errors
+          aws s3 cp deploy/deploy.sh   "s3://$BUCKET/releases/$SHA-deploy.sh" --only-show-errors
+          echo "tarball=s3://$BUCKET/releases/$SHA.tar.gz"     >> "$GITHUB_OUTPUT"
+          echo "script=s3://$BUCKET/releases/$SHA-deploy.sh"   >> "$GITHUB_OUTPUT"
+
+      # The database is the EBS data volume. Snapshot before every release so a
+      # bad release is always recoverable (manual §12/§14).
+      - name: Pre-deploy EBS snapshot
+        run: |
+          SNAP=$(aws ec2 create-snapshot \
+            --volume-id '${{ vars.DATA_VOLUME_ID }}' \
+            --description "pre-deploy ${{ steps.pkg.outputs.sha }} $(date -u +%FT%TZ)" \
+            --tag-specifications 'ResourceType=snapshot,Tags=[{Key=Name,Value=brb-analyst-pre-deploy},{Key=ManagedBy,Value=github-actions}]' \
+            --query SnapshotId --output text)
+          echo "::notice title=Pre-deploy snapshot::$SNAP"
+
+      - name: Deploy via SSM Run Command
+        id: ssm
+        run: |
+          set -euo pipefail
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids '${{ vars.EC2_INSTANCE_ID }}' \
+            --document-name AWS-RunShellScript \
+            --comment "BRB deploy ${{ steps.pkg.outputs.sha }}" \
+            --timeout-seconds 1200 \
+            --cloud-watch-output-config 'CloudWatchOutputEnabled=true,CloudWatchLogGroupName=/brb/analyst/deploy' \
+            --parameters commands="[
+              \"set -euo pipefail\",
+              \"aws s3 cp '${{ steps.upload.outputs.script }}' /tmp/deploy.sh --only-show-errors\",
+              \"chmod +x /tmp/deploy.sh\",
+              \"bash /tmp/deploy.sh '${{ steps.upload.outputs.tarball }}' '${{ steps.pkg.outputs.sha }}'\"
+            ]" \
+            --query Command.CommandId --output text)
+          echo "command-id: $CMD_ID"
+          echo "cmd_id=$CMD_ID" >> "$GITHUB_OUTPUT"
+
+          # Poll to completion (send-command is async).
+          aws ssm wait command-executed \
+            --command-id "$CMD_ID" \
+            --instance-id '${{ vars.EC2_INSTANCE_ID }}' || true
+
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "$CMD_ID" --instance-id '${{ vars.EC2_INSTANCE_ID }}' \
+            --query Status --output text)
+
+          echo "--- stdout ---"
+          aws ssm get-command-invocation --command-id "$CMD_ID" \
+            --instance-id '${{ vars.EC2_INSTANCE_ID }}' \
+            --query StandardOutputContent --output text || true
+          echo "--- stderr ---"
+          aws ssm get-command-invocation --command-id "$CMD_ID" \
+            --instance-id '${{ vars.EC2_INSTANCE_ID }}' \
+            --query StandardErrorContent --output text || true
+
+          echo "status: $STATUS"
+          [[ "$STATUS" == "Success" ]] || { echo "::error::deploy failed with status $STATUS (deploy.sh self-rolled-back if the swap had happened)"; exit 1; }
+
+      # deploy.sh already health-checked on localhost and rolled back on failure.
+      # This confirms the release is reachable through TLS from the outside.
+      - name: Verify public health endpoint
+        if: vars.PUBLIC_APP_URL != ''
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 10 '${{ vars.PUBLIC_APP_URL }}/api/health' | grep -q '"ok":true'; then
+              echo "public health OK"; exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::public health check failed — app is up locally but not reachable via ${{ vars.PUBLIC_APP_URL }} (check TLS/ALB/DNS)"
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Deploy ${{ steps.pkg.outputs.sha }} — ${{ job.status }}"
+            echo ""
+            echo "| field | value |"
+            echo "|---|---|"
+            echo "| commit | \`${{ github.sha }}\` |"
+            echo "| instance | \`${{ vars.EC2_INSTANCE_ID }}\` |"
+            echo "| artifact | \`${{ steps.upload.outputs.tarball }}\` |"
+            echo "| SSM command | \`${{ steps.ssm.outputs.cmd_id }}\` |"
+            echo "| SSM logs | CloudWatch \`/brb/analyst/deploy\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

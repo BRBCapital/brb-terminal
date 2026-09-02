@@ -1,0 +1,50 @@
+{
+  "//": "CloudWatch Agent config for BRB NGX Analyst (single EC2). Ships the app +",
+  "//2": "nginx logs and host metrics. Install the agent, then:",
+  "//3": "sudo cp deploy/cloudwatch-agent.json /opt/aws/amazon-cloudwatch-agent/etc/cw.json",
+  "//4": "sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/cw.json",
+  "//5": "The instance role needs the CloudWatchAgentServerPolicy managed policy.",
+  "//6": "App logs: the CloudWatch agent reads FILES, not journald — so have the",
+  "//7": "service write to /var/log/brb/app.log via a systemd drop-in (see the manual):",
+  "//8": "  [Service]  StandardOutput=append:/var/log/brb/app.log  StandardError=append:/var/log/brb/app.log",
+  "agent": {
+    "metrics_collection_interval": 60,
+    "run_as_user": "root"
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/brb/app.log",
+            "log_group_name": "/brb/analyst/app",
+            "log_stream_name": "{instance_id}",
+            "retention_in_days": 90
+          },
+          {
+            "file_path": "/var/log/nginx/access.log",
+            "log_group_name": "/brb/analyst/nginx-access",
+            "log_stream_name": "{instance_id}",
+            "retention_in_days": 30
+          },
+          {
+            "file_path": "/var/log/nginx/error.log",
+            "log_group_name": "/brb/analyst/nginx-error",
+            "log_stream_name": "{instance_id}",
+            "retention_in_days": 30
+          }
+        ]
+      }
+    }
+  },
+  "metrics": {
+    "append_dimensions": { "InstanceId": "${aws:InstanceId}" },
+    "metrics_collected": {
+      "mem": { "measurement": ["mem_used_percent"] },
+      "disk": {
+        "measurement": ["used_percent"],
+        "resources": ["/", "/var/lib/brb"]
+      }
+    }
+  }
+}

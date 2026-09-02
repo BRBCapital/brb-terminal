@@ -1,0 +1,51 @@
+# /etc/systemd/system/brb-analyst.service
+# BRB NGX Analyst — long-running Next.js server (single instance, PGlite on EBS).
+#
+# Install:
+#   sudo cp deploy/brb-analyst.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now brb-analyst
+#   sudo systemctl status brb-analyst   ·   journalctl -u brb-analyst -f
+#
+# NOTE — CI/CD release layout (supersedes manual §7's flat path):
+#   WorkingDirectory points at /opt/brb-analyst/current, a symlink to the live
+#   release under /opt/brb-analyst/releases/<sha>/. deploy/deploy.sh builds the
+#   new release first, then swaps the symlink and restarts — so a failed build
+#   never disturbs the running app, and rollback is a symlink swap.
+#   Deploying by hand instead? Point `current` at your checkout:
+#     sudo ln -sfn /opt/brb-analyst/releases/<sha> /opt/brb-analyst/current
+
+[Unit]
+Description=BRB NGX Analyst
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=brb
+Group=brb
+WorkingDirectory=/opt/brb-analyst/current
+# All secrets/config from §6 of the deployment manual (root-owned, chmod 640):
+EnvironmentFile=/etc/brb/brb.env
+# Uncomment when secrets come from AWS Secrets Manager (manual §6b):
+#ExecStartPre=/opt/brb-analyst/current/deploy/render-env.sh
+ExecStart=/usr/bin/node node_modules/.bin/next start -p 3000
+Restart=always
+RestartSec=5
+
+# Log to a file as well as journald, so the CloudWatch agent (which tails FILES,
+# not journald) can ship it — see deploy/cloudwatch-agent.json.
+# LogsDirectory creates /var/log/brb owned by brb:brb automatically.
+LogsDirectory=brb
+StandardOutput=append:/var/log/brb/app.log
+StandardError=append:/var/log/brb/app.log
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+# The DB volume must stay writable — do not add it to ReadWritePaths restrictions
+# if you tighten ProtectSystem to 'strict'; PGLITE_DIR=/var/lib/brb/pg
+ReadWritePaths=/var/lib/brb
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,205 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --sand: 245 242 236; /* page background */
+  --stone: 232 230 224; /* dividers / borders */
+  --ink: 26 26 26; /* body text */
+  --surface: 255 255 255; /* cards / popovers */
+}
+
+.dark {
+  color-scheme: dark;
+  --sand: 12 20 16; /* deep forest-charcoal page */
+  --stone: 47 63 55; /* borders — a touch brighter for crisper edges */
+  --ink: 224 231 224; /* light body text */
+  --surface: 23 37 31; /* card surface — lifted for separation from page */
+}
+
+/* Brand foreground (forest) is a fixed dark green so nav/badges keep working;
+   lift it to a readable light green on dark surfaces. */
+.dark .text-forest,
+.dark .brb-title {
+  color: #a7d8a9;
+}
+.dark .text-forest-soft,
+.dark .brb-eyebrow {
+  color: #bfe3c0;
+}
+/* …but keep dark-forest text on solid fresh-green surfaces (buttons, badges),
+   where the lightened green would wash out. */
+.dark .bg-fresh.text-forest {
+  color: #052a22;
+}
+
+/* Dark elevation: the light-theme card shadow is invisible on a dark canvas, so
+   cards would read flat. Give them a real cast shadow plus a hairline top
+   highlight ("lit from above") to lift them off the page. */
+.dark .brb-card {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 10px 24px -12px rgba(0, 0, 0, 0.55);
+}
+.dark .brb-card-interactive:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    0 16px 30px -14px rgba(0, 0, 0, 0.6);
+}
+/* Popovers / dropdowns that use the raw shadow utility also need dark lift. */
+.dark .shadow-card {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 8px 24px -10px rgba(0, 0, 0, 0.55);
+}
+/* Light-mode interactive lift (subtle). */
+.brb-card-interactive:hover {
+  box-shadow:
+    0 2px 4px rgba(5, 42, 34, 0.08),
+    0 12px 24px -12px rgba(5, 42, 34, 0.14);
+}
+
+body {
+  @apply bg-sand text-ink font-sans antialiased;
+  transition: background-color 0.2s ease;
+}
+
+/* Ambient depth: a whisper of brand green at the top of the dark canvas so the
+   page reads as lit, not a flat fill. Fixed so it doesn't scroll away. */
+.dark body {
+  background-image: radial-gradient(
+    1100px 520px at 50% -8%,
+    rgba(138, 200, 115, 0.06),
+    transparent 62%
+  );
+  background-attachment: fixed;
+}
+
+/* Professional polish ------------------------------------------------------ */
+
+/* Branded text selection */
+::selection {
+  background: #8ac873;
+  color: #052a22;
+}
+
+/* Visible, branded keyboard-focus rings (a11y + polish) */
+:focus-visible {
+  outline: 2px solid #8ac873;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Thin, theme-aware scrollbars for the many dense scroll containers */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--stone)) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgb(var(--stone));
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Financial tables always read with aligned digits */
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Charts: Recharts sets colors as SVG attributes/inline styles with hardcoded
+   light-theme values — re-skin them for dark surfaces here. */
+.dark .recharts-text {
+  fill: rgba(223, 230, 223, 0.55);
+}
+.dark .recharts-cartesian-axis line {
+  stroke: rgba(223, 230, 223, 0.15);
+}
+.dark .recharts-default-tooltip {
+  background-color: rgb(20 32 27) !important;
+  border: 1px solid rgb(42 56 49) !important;
+}
+.dark .recharts-tooltip-label,
+.dark .recharts-tooltip-item-list .recharts-tooltip-item {
+  color: rgb(223 230 223) !important;
+}
+.dark .recharts-tooltip-cursor {
+  fill: rgba(255, 255, 255, 0.06);
+}
+
+/* BRB brand primitives ---------------------------------------------------- */
+
+@layer components {
+  /* Numbered eyebrow tag on section headers */
+  .brb-eyebrow {
+    @apply inline-flex items-center gap-2 font-sans text-[11px] font-semibold uppercase tracking-eyebrow text-forest-soft;
+  }
+  .brb-eyebrow-num {
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-fresh px-1.5 text-[10px] font-bold text-forest;
+  }
+
+  /* Green-underlined section title */
+  .brb-title {
+    @apply font-serif text-2xl font-semibold text-forest;
+  }
+  .brb-underline {
+    @apply mt-2 h-1 w-14 rounded-full bg-gradient-to-r from-fresh to-fresh/25;
+  }
+
+  /* Card surface */
+  .brb-card {
+    @apply rounded-xl border border-stone bg-surface shadow-card;
+    transition:
+      border-color 0.18s ease,
+      box-shadow 0.18s ease,
+      transform 0.18s ease;
+  }
+
+  /* Interactive cards (links/buttons) lift on hover and pick up the accent. */
+  .brb-card-interactive {
+    @apply cursor-pointer;
+  }
+  .brb-card-interactive:hover {
+    @apply -translate-y-px border-fresh;
+  }
+
+  /* Triangle bullet */
+  .brb-bullet::before {
+    content: "▸";
+    @apply mr-2 text-fresh;
+  }
+
+  /* Pull-quote / callout panel with left green bar */
+  .brb-callout {
+    @apply border-l-4 border-fresh bg-surface/60 pl-4;
+  }
+}
+
+/* Print / PDF one-pager -------------------------------------------------- */
+@media print {
+  @page {
+    margin: 14mm;
+    size: A4;
+  }
+  body {
+    background: #fff;
+  }
+  /* Keep cards and charts from splitting across pages. */
+  .brb-card,
+  .recharts-wrapper {
+    break-inside: avoid;
+  }
+  /* Recharts renders SVG which browsers print faithfully; force color. */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
