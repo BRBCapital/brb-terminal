@@ -1,0 +1,63 @@
+name: Scheduler (alerts + engine tick)
+
+# Replaces the in-process setInterval workers that serverless cannot host.
+# Hits the /api/cron/* endpoints on a schedule with the shared CRON_SECRET.
+#
+# WHY THIS EXISTS RATHER THAN VERCEL CRON:
+#   Vercel Cron on the Hobby plan runs at most once per DAY, which is too coarse
+#   for alert evaluation. Minute-level cron needs Vercel Pro.
+#
+# COST — read before making the repo private:
+#   Actions minutes are free and unlimited on PUBLIC repos, but a private repo
+#   bills them (2,000 min/month free). Each run is billed at a 1-minute minimum,
+#   so this workflow costs roughly:
+#       */15  -> ~96 runs/day  -> ~2,900 min/month   (over the free tier)
+#       */30  -> ~48 runs/day  -> ~1,450 min/month   (inside it)
+#   Vercel Pro at $20/month gives minute-level cron AND lifts the 60s function
+#   ceiling to 300s, which the AI report routes need anyway — so once this repo
+#   is private, Pro is both cheaper and more capable than this workflow.
+#   A free external pinger (e.g. cron-job.org) is the other option.
+#
+# Both cadences are hit in ONE job on purpose: two jobs would double the
+# billable minutes for no benefit.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}   # lets you trigger a tick by hand to test
+
+concurrency:
+  group: scheduler
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Evaluate alerts
+        env:
+          BASE: ${{ vars.PUBLIC_APP_URL }}
+          SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          [ -n "$BASE" ]   || { echo "::error::repo variable PUBLIC_APP_URL is not set"; exit 1; }
+          [ -n "$SECRET" ] || { echo "::error::repo secret CRON_SECRET is not set"; exit 1; }
+          code=$(curl -sS -o /tmp/alerts.json -w '%{http_code}' \
+                   --max-time 90 -X POST "$BASE/api/cron/alerts" \
+                   -H "Authorization: Bearer $SECRET")
+          echo "alerts -> HTTP $code"; cat /tmp/alerts.json; echo
+          [ "$code" = "200" ] || exit 1
+
+      # Runs even if alerts failed — the two cadences are independent.
+      - name: Engine scheduler tick
+        if: always()
+        env:
+          BASE: ${{ vars.PUBLIC_APP_URL }}
+          SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          # A no-op while the engine is paused (its shipped default), so this
+          # returns immediately until the engine is deliberately enabled.
+          code=$(curl -sS -o /tmp/engine.json -w '%{http_code}' \
+                   --max-time 90 -X POST "$BASE/api/cron/engine" \
+                   -H "Authorization: Bearer $SECRET")
+          echo "engine -> HTTP $code"; cat /tmp/engine.json; echo
+          [ "$code" = "200" ] || exit 1
