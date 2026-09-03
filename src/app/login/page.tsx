@@ -1,8 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useUser } from "@/components/auth/AuthProvider";
+import { useSearchParams } from "next/navigation";
 import { BrbLogo } from "@/components/brand/BrbLogo";
 
 const CAPABILITIES = [
@@ -22,9 +21,7 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
-  const { refresh } = useUser();
   // Only ever redirect to a same-origin absolute path. Reject anything that
   // could navigate off-site: absolute URLs, protocol-relative "//evil.com", and
   // backslash tricks some browsers treat as protocol-relative.
@@ -52,8 +49,16 @@ function LoginForm() {
         setBusy(false);
         return;
       }
-      await refresh();
-      router.replace(next);
+      // Hard navigation, NOT router.replace(). A client-side transition can be
+      // served from Next's Client Router Cache, which still holds this path's
+      // pre-login entry — the middleware redirect back to /login. That made the
+      // first sign-in hang on "Signing in…" (busy is deliberately left true
+      // while navigating away) until the cache entry aged out ~30s later, which
+      // is why a second attempt then worked. A full load re-runs middleware with
+      // the new session cookie and renders a clean authenticated page; it also
+      // makes AuthProvider fetch /api/auth/me fresh, so no refresh() is needed.
+      // The broker portal has always navigated this way and never had the bug.
+      window.location.assign(next);
     } catch {
       setError("Could not reach the server.");
       setBusy(false);
