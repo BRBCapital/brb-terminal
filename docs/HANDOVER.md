@@ -68,6 +68,16 @@ yourself (`docs/CICD.md` §4) **or** give them repo admin so they can.
 
 ## 1 · The one constraint that shapes everything
 
+> **⚠ SUPERSEDED for the Vercel deployment — see `docs/VERCEL-MIGRATION.md`.**
+> This section described the original architecture, which genuinely could not
+> run on serverless. The database has since moved from on-disk PGlite to a
+> networked Postgres (Neon), and the `setInterval` workers are now `/api/cron/*`
+> endpoints — so the constraint below no longer applies there. It remains
+> accurate as history, and as the rationale for the EC2 path in the PDF manual,
+> which is still valid and now *less* constrained than before: a networked
+> database removes the single-writer requirement. Row 3 (rate limiting) is still
+> per-instance, consciously accepted for a 5-user internal app.
+
 This is a **single long-lived Node process that must run on exactly one
 instance**. Three properties in the code force it:
 

@@ -24,6 +24,25 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 25
 
+    # The app now talks to a networked Postgres, so the dynamic gates need a
+    # real database. A service container gives each run a private, throwaway
+    # one — so CI still needs NO secrets and never touches production data.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: brb
+          POSTGRES_PASSWORD: brb
+          POSTGRES_DB: brb_ci
+        ports:
+          - 5432:5432
+        # Don't start the gates until Postgres is actually accepting connections.
+        options: >-
+          --health-cmd "pg_isready -U brb -d brb_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
     steps:
       - uses: actions/checkout@v4
 
@@ -50,24 +69,28 @@ jobs:
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
         run: npm run build
 
-      # ── Dynamic gates: boot the built app against a throwaway PGlite DB ───
+      # ── Dynamic gates: boot the built app against the throwaway Postgres ──
       - name: Generate ephemeral runtime secrets
         run: |
           # Per-run throwaway values — never reused, never the production key.
           ENC="$(openssl rand -hex 32)"
           SEED="$(openssl rand -base64 24)"
+          CRON="$(openssl rand -hex 24)"
           echo "::add-mask::$ENC"
           echo "::add-mask::$SEED"
+          echo "::add-mask::$CRON"
           echo "APP_ENCRYPTION_KEY=$ENC" >> "$GITHUB_ENV"
           echo "BRB_SEED_PASSWORD=$SEED" >> "$GITHUB_ENV"
+          echo "CRON_SECRET=$CRON" >> "$GITHUB_ENV"
 
       - name: Start production server
         env:
           NODE_ENV: production
           PORT: 3000
-          PGLITE_DIR: ${{ runner.temp }}/pg
+          # Local service container: plain TCP, no TLS — so no sslmode here.
+          # The app enables SSL automatically for Neon/sslmode connections.
+          DATABASE_URL: postgres://brb:brb@127.0.0.1:5432/brb_ci
         run: |
-          mkdir -p "$PGLITE_DIR"
           npm start > "${{ runner.temp }}/server.log" 2>&1 &
           echo "waiting for /api/health ..."
           for i in $(seq 1 60); do

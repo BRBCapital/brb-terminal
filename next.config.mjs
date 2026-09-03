@@ -2,11 +2,16 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false, // don't advertise the framework (X-Powered-By)
-  // PGlite ships WASM + native fs access — keep it out of the bundler so it
-  // loads as a normal Node module in server routes.
+  // `pg` opens TCP sockets and resolves optional native/pg-native bindings —
+  // keep it out of the bundler so it loads as a normal Node module in server
+  // routes. (Replaces the former PGlite entry; PGlite needed this for its WASM
+  // and fs access.)
+  //
+  // instrumentationHook is deliberately gone: it started the in-process
+  // setInterval workers, which cannot survive on serverless. The alert and
+  // engine cadences now arrive as HTTP requests — see src/app/api/cron/*.
   experimental: {
-    serverComponentsExternalPackages: ["@electric-sql/pglite"],
-    instrumentationHook: true,
+    serverComponentsExternalPackages: ["pg"],
   },
   images: {
     remotePatterns: [
